@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
-import 'services/camera_service.dart';
+import 'dart:io' show Platform;
 import 'screens/task_list_screen.dart';
+import 'services/camera_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Inicializar câmera
-  await CameraService.instance.initialize();
+  if (Platform.isAndroid || Platform.isIOS) {
+    await CameraService.instance.initialize();
+  } else {
+    print('⚠️ Câmera não inicializada: plataforma não suportada para plugin de câmera.');
+  }
   
   runApp(const MyApp());
 }
@@ -25,10 +29,10 @@ class MyApp extends StatelessWidget {
           brightness: Brightness.light,
         ),
         useMaterial3: true,
-        cardTheme: CardTheme(
+        cardTheme: const CardThemeData(
           elevation: 2,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.all(Radius.circular(12)),
           ),
         ),
       ),
