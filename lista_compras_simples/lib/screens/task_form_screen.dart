@@ -55,16 +55,16 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     super.dispose();
   }
 
-  // CÂMERA METHODS
-  Future<void> _takePicture() async {
-    final photoPath = await CameraService.instance.takePicture(context);
+  // MÉTODO ATUALIZADO: OBTER IMAGEM (CÂMERA OU GALERIA)
+  Future<void> _getImage() async {
+    final photoPath = await CameraService.instance.getImage(context);
     
     if (photoPath != null && mounted) {
       setState(() => _photoPath = photoPath);
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('📷 Foto capturada!'),
+          content: Text('📷 Foto adicionada!'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
         ),
@@ -90,9 +90,17 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           appBar: AppBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
           ),
           body: Center(
             child: InteractiveViewer(
+              minScale: 0.1,
+              maxScale: 4.0,
               child: Image.file(File(_photoPath!), fit: BoxFit.contain),
             ),
           ),
@@ -101,7 +109,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     );
   }
 
-  // GPS METHODS
+  // GPS METHODS (mantido igual)
   void _showLocationPicker() {
     showModalBottomSheet(
       context: context,
@@ -304,7 +312,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     
                     const Divider(height: 32),
                     
-                    // SEÇÃO FOTO
+                    // SEÇÃO FOTO - ATUALIZADA
                     Row(
                       children: [
                         const Icon(Icons.photo_camera, color: Colors.blue),
@@ -348,27 +356,109 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image.file(
-                              File(_photoPath!),
-                              width: double.infinity,
-                              fit: BoxFit.cover,
+                            child: Stack(
+                              children: [
+                                Image.file(
+                                  File(_photoPath!),
+                                  width: double.infinity,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return Container(
+                                      color: Colors.grey[200],
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.broken_image_outlined,
+                                            size: 48,
+                                            color: Colors.grey[400],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Erro ao carregar imagem',
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                                Positioned(
+                                  top: 8,
+                                  right: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withOpacity(0.6),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: const Icon(
+                                      Icons.zoom_in,
+                                      color: Colors.white,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       )
                     else
-                      OutlinedButton.icon(
-                        onPressed: _takePicture,
-                        icon: const Icon(Icons.camera_alt),
-                        label: const Text('Tirar Foto'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.all(16),
-                        ),
+                      Column(
+                        children: [
+                          // BOTÃO PRINCIPAL PARA ADICIONAR FOTO
+                          ElevatedButton.icon(
+                            onPressed: _getImage,
+                            icon: const Icon(Icons.add_photo_alternate),
+                            label: const Text('Adicionar Foto'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.all(16),
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 8),
+                          
+                          // BOTÕES ALTERNATIVOS
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final photoPath = await CameraService.instance.takePicture(context);
+                                    if (photoPath != null && mounted) {
+                                      setState(() => _photoPath = photoPath);
+                                    }
+                                  },
+                                  icon: const Icon(Icons.camera_alt),
+                                  label: const Text('Câmera'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final photoPath = await CameraService.instance.pickFromGallery(context);
+                                    if (photoPath != null && mounted) {
+                                      setState(() => _photoPath = photoPath);
+                                    }
+                                  },
+                                  icon: const Icon(Icons.photo_library),
+                                  label: const Text('Galeria'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     
                     const Divider(height: 32),
                     
-                    // SEÇÃO LOCALIZAÇÃO
+                    // SEÇÃO LOCALIZAÇÃO (mantida igual)
                     Row(
                       children: [
                         const Icon(Icons.location_on, color: Colors.blue),

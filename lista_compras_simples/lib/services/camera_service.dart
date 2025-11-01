@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import '../screens/camera_screen.dart';
@@ -10,6 +11,7 @@ class CameraService {
   CameraService._init();
 
   List<CameraDescription>? _cameras;
+  final ImagePicker _imagePicker = ImagePicker();
 
   Future<void> initialize() async {
     try {
@@ -23,6 +25,7 @@ class CameraService {
 
   bool get hasCameras => _cameras != null && _cameras!.isNotEmpty;
 
+  // MÉTODO PARA TIRAR FOTO COM CÂMERA
   Future<String?> takePicture(BuildContext context) async {
     if (!hasCameras) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -73,6 +76,40 @@ class CameraService {
     }
   }
 
+  // NOVO MÉTODO: SELECIONAR DA GALERIA
+  Future<String?> pickFromGallery(BuildContext context) async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image == null) {
+        print('👆 Usuário cancelou seleção da galeria');
+        return null;
+      }
+
+      final savedPath = await savePicture(image);
+      print('✅ Foto da galeria salva: $savedPath');
+      return savedPath;
+    } catch (e) {
+      print('❌ Erro ao selecionar da galeria: $e');
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao selecionar imagem: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return null;
+    }
+  }
+
+  // MÉTODO UNIFICADO PARA SALVAR FOTOS
   Future<String> savePicture(XFile image) async {
     try {
       final appDir = await getApplicationDocumentsDirectory();
@@ -105,5 +142,106 @@ class CameraService {
       print('❌ Erro ao deletar foto: $e');
       return false;
     }
+  }
+
+  // MÉTODO PARA OBTER IMAGEM (DIÁLOGO DE SELEÇÃO)
+  Future<String?> getImage(BuildContext context) async {
+    return await showDialog<String>(
+      context: context,
+      builder: (context) => _ImageSourceDialog(),
+    );
+  }
+}
+
+// WIDGET DE DIÁLOGO PARA SELEÇÃO DA FONTE DA IMAGEM
+class _ImageSourceDialog extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Adicionar Foto',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            
+            const SizedBox(height: 24),
+            
+            // BOTÃO CÂMERA
+            _SourceButton(
+              icon: Icons.camera_alt,
+              label: 'Tirar Foto',
+              color: Colors.blue,
+              onTap: () async {
+                final path = await CameraService.instance.takePicture(context);
+                Navigator.pop(context, path);
+              },
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // BOTÃO GALERIA
+            _SourceButton(
+              icon: Icons.photo_library,
+              label: 'Escolher da Galeria',
+              color: Colors.green,
+              onTap: () async {
+                final path = await CameraService.instance.pickFromGallery(context);
+                Navigator.pop(context, path);
+              },
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // BOTÃO CANCELAR
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SourceButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _SourceButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 24),
+      label: Text(
+        label,
+        style: const TextStyle(fontSize: 16),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
   }
 }
