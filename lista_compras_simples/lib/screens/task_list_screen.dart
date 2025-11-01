@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/task.dart';
-import '../services/camera_service.dart';
 import '../services/database_service.dart';
 import '../services/sensor_service.dart';
 import '../services/location_service.dart';
+import '../services/camera_service.dart';
 import '../screens/task_form_screen.dart';
+import '../screens/task_map_screen.dart';
 import '../widgets/task_card.dart';
 
 class TaskListScreen extends StatefulWidget {
@@ -23,16 +24,15 @@ class _TaskListScreenState extends State<TaskListScreen> {
   void initState() {
     super.initState();
     _loadTasks();
-    _setupShakeDetection(); // INICIAR SHAKE
+    _setupShakeDetection();
   }
 
   @override
   void dispose() {
-    SensorService.instance.stop(); // PARAR SHAKE
+    SensorService.instance.stop();
     super.dispose();
   }
 
-  // SHAKE DETECTION
   void _setupShakeDetection() {
     SensorService.instance.startShakeDetection(() {
       _showShakeDialog();
@@ -168,8 +168,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
       case 'completed':
         return _tasks.where((t) => t.completed).toList();
       case 'nearby':
-        // Implementar filtro de proximidade
-        return _tasks;
+        return _tasks.where((t) => t.hasLocation).toList();
       default:
         return _tasks;
     }
@@ -297,6 +296,19 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }
   }
 
+  Future<void> _openTaskForm([Task? task]) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TaskFormScreen(task: task),
+      ),
+    );
+
+    if (result == true) {
+      await _loadTasks();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final stats = _statistics;
@@ -308,6 +320,21 @@ class _TaskListScreenState extends State<TaskListScreen> {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
+          // BOTÃO DO MAPA
+          IconButton(
+            icon: const Icon(Icons.map),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const TaskMapScreen(),
+                ),
+              );
+            },
+            tooltip: 'Ver Mapa',
+          ),
+          
+          // MENU DE FILTROS
           PopupMenuButton<String>(
             icon: const Icon(Icons.filter_list),
             onSelected: (value) {
@@ -316,8 +343,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
               } else {
                 setState(() {
                   _filter = value;
-                  if (value != 'nearby') _loadTasks();
                 });
+                _loadTasks();
               }
             },
             itemBuilder: (context) => [
@@ -363,6 +390,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
               ),
             ],
           ),
+          
+          // BOTÃO DE INFORMAÇÕES
           IconButton(
             icon: const Icon(Icons.info_outline),
             onPressed: () {
@@ -383,6 +412,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
                       Text('• Use filtros para organizar'),
                       SizedBox(height: 8),
                       Text('• Adicione fotos e localização'),
+                      SizedBox(height: 8),
+                      Text('• Veja as tarefas no mapa (ícone do mapa)'),
                     ],
                   ),
                   actions: [
@@ -397,6 +428,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
           ),
         ],
       ),
+      
       body: RefreshIndicator(
         onRefresh: _loadTasks,
         child: _isLoading
@@ -404,74 +436,67 @@ class _TaskListScreenState extends State<TaskListScreen> {
             : Column(
                 children: [
                   // CARD DE ESTATÍSTICAS
-                  Container(
-                    margin: const EdgeInsets.all(16),
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.blue.shade400, Colors.blue.shade700],
+                  if (_tasks.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.blue.shade400, Colors.blue.shade700],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.withOpacity(0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.blue.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _StatItem(
+                            label: 'Total',
+                            value: stats['total'].toString(),
+                            icon: Icons.list_alt,
+                          ),
+                          Container(
+                            width: 1,
+                            height: 40,
+                            color: Colors.white.withOpacity(0.3),
+                          ),
+                          _StatItem(
+                            label: 'Concluídas',
+                            value: stats['completed'].toString(),
+                            icon: Icons.check_circle,
+                          ),
+                          Container(
+                            width: 1,
+                            height: 40,
+                            color: Colors.white.withOpacity(0.3),
+                          ),
+                          _StatItem(
+                            label: 'Taxa',
+                            value: '${stats['completionRate']}%',
+                            icon: Icons.trending_up,
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _StatItem(
-                          label: 'Total',
-                          value: stats['total'].toString(),
-                          icon: Icons.list_alt,
-                        ),
-                        Container(
-                          width: 1,
-                          height: 40,
-                          color: Colors.white.withOpacity(0.3),
-                        ),
-                        _StatItem(
-                          label: 'Concluídas',
-                          value: stats['completed'].toString(),
-                          icon: Icons.check_circle,
-                        ),
-                        Container(
-                          width: 1,
-                          height: 40,
-                          color: Colors.white.withOpacity(0.3),
-                        ),
-                        _StatItem(
-                          label: 'Taxa',
-                          value: '${stats['completionRate']}%',
-                          icon: Icons.trending_up,
-                        ),
-                      ],
-                    ),
-                  ),
 
                   // LISTA DE TAREFAS
                   Expanded(
                     child: filteredTasks.isEmpty
                         ? _buildEmptyState()
                         : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            padding: const EdgeInsets.only(bottom: 16),
                             itemCount: filteredTasks.length,
                             itemBuilder: (context, index) {
                               final task = filteredTasks[index];
                               return TaskCard(
                                 task: task,
-                                onTap: () async {
-                                  final result = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => TaskFormScreen(task: task),
-                                    ),
-                                  );
-                                  if (result == true) _loadTasks();
-                                },
+                                onTap: () => _openTaskForm(task),
                                 onDelete: () => _deleteTask(task),
                                 onCheckboxChanged: (value) => _toggleComplete(task),
                               );
@@ -481,27 +506,25 @@ class _TaskListScreenState extends State<TaskListScreen> {
                 ],
               ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const TaskFormScreen(),
-            ),
-          );
-          if (result == true) _loadTasks();
-        },
+      
+      // BOTÃO FLUTUANTE PARA ADICIONAR TAREFA - CORRIGIDO
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _openTaskForm(),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Nova Tarefa'),
+        child: const Icon(Icons.add),
       ),
+      
+      // POSICIONAMENTO DO BOTÃO FLUTUANTE
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
   Widget _buildEmptyState() {
     String message;
     IconData icon;
+    String? buttonText;
+    VoidCallback? buttonAction;
 
     switch (_filter) {
       case 'pending':
@@ -511,31 +534,74 @@ class _TaskListScreenState extends State<TaskListScreen> {
       case 'completed':
         message = '📋 Nenhuma tarefa concluída ainda';
         icon = Icons.pending_outlined;
+        buttonText = 'Criar Primeira Tarefa';
+        buttonAction = () => _openTaskForm();
         break;
       case 'nearby':
         message = '📍 Nenhuma tarefa próxima';
         icon = Icons.near_me;
+        buttonText = 'Ver Todas as Tarefas';
+        buttonAction = () {
+          setState(() => _filter = 'all');
+          _loadTasks();
+        };
         break;
       default:
         message = '📝 Nenhuma tarefa ainda.\nToque em + para criar!';
         icon = Icons.add_task;
+        buttonText = 'Criar Primeira Tarefa';
+        buttonAction = () => _openTaskForm();
     }
 
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 80, color: Colors.grey[300]),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 80, color: Colors.grey[300]),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            if (buttonText != null && buttonAction != null)
+              ElevatedButton.icon(
+                onPressed: buttonAction,
+                icon: const Icon(Icons.add),
+                label: Text(buttonText),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+              ),
+            const SizedBox(height: 16),
+            // BOTÃO PARA IR PARA O MAPA
+            if (_filter == 'all' && _tasks.isEmpty)
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TaskMapScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.map),
+                label: const Text('Explorar Mapa'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.green,
+                  side: const BorderSide(color: Colors.green),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
